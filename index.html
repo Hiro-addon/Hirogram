@@ -204,7 +204,7 @@ canvas {
 
 <p class="description">
 Hirogramの文字列を貼り付けてください。<br>
-「/n」が行の区切りです。<br>
+「\n」が行の区切りです。<br>
 縦は行数、横は一番長い行から自動判定されます。
 </p>
 
@@ -707,7 +707,7 @@ async function imageToText(
         height,
         text:
             rows.join(
-                "/n"
+                "\n"
             )
     };
 }
@@ -897,7 +897,7 @@ function textToImage(
 
     const lines =
         text.split(
-            "/n"
+            "\n"
         );
 
     const width =
@@ -955,13 +955,19 @@ function textToImage(
         imageData.data[i] =
             255;
 
-        imageData.data[i + 1] =
+        imageData.data[
+            i + 1
+        ] =
             255;
 
-        imageData.data[i + 2] =
+        imageData.data[
+            i + 2
+        ] =
             255;
 
-        imageData.data[i + 3] =
+        imageData.data[
+            i + 3
+        ] =
             255;
     }
 
