@@ -183,7 +183,7 @@ canvas {
     id="gridWidth"
     type="number"
     min="1"
-    max="128"
+    max="512"
     value="32"
     inputmode="numeric"
 >
@@ -649,11 +649,11 @@ document
                     width
                 ) ||
                 width < 1 ||
-                width > 128
+                width > 512
             ) {
 
                 alert(
-                    "横のマス数は1～128で入力してください。"
+                    "横のマス数は1～512で入力してください。"
                 );
 
                 return;
