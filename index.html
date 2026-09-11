@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hirogram</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    background: #f2f2f7;
+    color: #222;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+.container {
+    width: 100%;
+    max-width: 900px;
+    margin: auto;
+}
+
+h1 {
+    margin: 5px 0 8px;
+    font-size: 30px;
+}
+
+.subtitle {
+    color: #666;
+    margin-bottom: 25px;
+}
+
+.card {
+    background: white;
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 15px rgba(0,0,0,.08);
+}
+
+h2 {
+    margin: 0 0 15px;
+    font-size: 21px;
+}
+
+label {
+    display: block;
+    margin-top: 16px;
+    font-weight: 600;
+}
+
+input[type="file"],
+input[type="number"],
+textarea {
+    width: 100%;
+    margin-top: 8px;
+}
+
+input[type="number"] {
+    height: 48px;
+    padding: 0 12px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    font-size: 17px;
+    background: white;
+}
+
+input[type="file"] {
+    padding: 8px 0;
+}
+
+textarea {
+    min-height: 190px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 11px;
+    background: #111;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:active {
+    opacity: .7;
+    transform: scale(.99);
+}
+
+button:disabled {
+    opacity: .5;
+}
+
+.info {
+    margin-top: 12px;
+    color: #666;
+    font-size: 14px;
+    word-break: break-all;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-top: 15px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: white;
+    image-rendering: pixelated;
+}
+
+.description {
+    color: #666;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.success {
+    color: #16833b;
+}
+
+.error {
+    color: #c62828;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Hirogram</h1>
+
+<div class="subtitle">
+画像 ⇔ 256色文字列変換
+</div>
+
+<div class="card">
+
+<h2>画像 → 文字列</h2>
+
+<p class="description">
+画像を256色に変換します。<br>
+1マスにつき1文字になります。<br>
+横のマス数だけ指定してください。<br>
+縦のマス数は画像の縦横比から自動計算されます。
+</p>
+
+<label>
+画像
+</label>
+
+<input
+    id="imageFile"
+    type="file"
+    accept="image/*"
+>
+
+<label>
+横のマス数
+</label>
+
+<input
+    id="gridWidth"
+    type="number"
+    min="1"
+    max="128"
+    value="32"
+    inputmode="numeric"
+>
+
+<button
+    id="convertButton"
+    type="button"
+>
+画像を文字列に変換
+</button>
+
+<div
+    id="imageInfo"
+    class="info"
+></div>
+
+<textarea
+    id="outputText"
+    spellcheck="false"
+    placeholder="変換結果"
+></textarea>
+
+<button
+    id="copyButton"
+    type="button"
+>
+文字列をコピー
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>文字列 → 画像</h2>
+
+<p class="description">
+Hirogramの文字列を貼り付けてください。<br>
+「/n」が行の区切りです。<br>
+縦は行数、横は一番長い行から自動判定されます。
+</p>
+
+<textarea
+    id="inputText"
+    spellcheck="false"
+    placeholder="Hirogramの文字列をここに貼り付け"
+></textarea>
+
+<button
+    id="decodeButton"
+    type="button"
+>
+画像に変換
+</button>
+
+<div
+    id="textInfo"
+    class="info"
+></div>
+
+<canvas
+    id="canvas"
+></canvas>
+
+<button
+    id="downloadButton"
+    type="button"
+>
+PNGとして保存
+</button>
+
+</div>
+
+</div>
+
+<script>
+
+const LEVELS = [
+    0,
+    51,
+    102,
+    153,
+    204,
+    255
+];
+
+const palette = [];
+
+for (
+    const r of LEVELS
+) {
+    for (
+        const g of LEVELS
+    ) {
+        for (
+            const b of LEVELS
+        ) {
+            palette.push([
+                r,
+                g,
+                b
+            ]);
+        }
+    }
+}
+
+for (
+    let i = 0;
+    i < 40;
+    i++
+) {
+
+    const value =
+        Math.round(
+            i * 255 / 39
+        );
+
+    palette.push([
+        value,
+        value,
+        value
+    ]);
+}
+
+const characters = [
+    ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    ..."abcdefghijklmnopqrstuvwxyz",
+    ..."0123456789",
+    ...Array.from(
+        {
+            length: 194
+        },
+        (_, i) =>
+            String.fromCodePoint(
+                0x3041 + i
+            )
+    )
+].slice(
+    0,
+    256
+);
+
+const charToColor =
+    new Map();
+
+for (
+    let i = 0;
+    i < 256;
+    i++
+) {
+
+    charToColor.set(
+        characters[i],
+        palette[i]
+    );
+}
+
+function nearestColor(
+    r,
+    g,
+    b
+) {
+
+    let bestIndex = 0;
+
+    let bestDistance =
+        Infinity;
+
+    for (
+        let i = 0;
+        i < palette.length;
+        i++
+    ) {
+
+        const color =
+            palette[i];
+
+        const dr =
+            r - color[0];
+
+        const dg =
+            g - color[1];
+
+        const db =
+            b - color[2];
+
+        const distance =
+            dr * dr +
+            dg * dg +
+            db * db;
+
+        if (
+            distance <
+            bestDistance
+        ) {
+
+            bestDistance =
+                distance;
+
+            bestIndex =
+                i;
+        }
+    }
+
+    return characters[
+        bestIndex
+    ];
+}
+
+function loadImage(file) {
+
+    return new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            const url =
+                URL.createObjectURL(
+                    file
+                );
+
+            const image =
+                new Image();
+
+            image.onload =
+                function () {
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+                    resolve(
+                        image
+                    );
+                };
+
+            image.onerror =
+                function () {
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+                    reject(
+                        new Error(
+                            "画像を読み込めませんでした。"
+                        )
+                    );
+                };
+
+            image.src =
+                url;
+        }
+    );
+}
+
+async function imageToText(
+    file,
+    width
+) {
+
+    const image =
+        await loadImage(
+            file
+        );
+
+    const originalWidth =
+        image.naturalWidth;
+
+    const originalHeight =
+        image.naturalHeight;
+
+    if (
+        !originalWidth ||
+        !originalHeight
+    ) {
+
+        throw new Error(
+            "画像サイズを取得できません。"
+        );
+    }
+
+    const height =
+        Math.max(
+            1,
+            Math.round(
+                width *
+                originalHeight /
+                originalWidth
+            )
+        );
+
+    const canvas =
+        document.createElement(
+            "canvas"
+        );
+
+    canvas.width =
+        width;
+
+    canvas.height =
+        height;
+
+    const ctx =
+        canvas.getContext(
+            "2d",
+            {
+                willReadFrequently:
+                    true
+            }
+        );
+
+    ctx.fillStyle =
+        "#ffffff";
+
+    ctx.fillRect(
+        0,
+        0,
+        width,
+        height
+    );
+
+    ctx.drawImage(
+        image,
+        0,
+        0,
+        width,
+        height
+    );
+
+    const imageData =
+        ctx.getImageData(
+            0,
+            0,
+            width,
+            height
+        );
+
+    const pixels =
+        imageData.data;
+
+    const rows = [];
+
+    for (
+        let y = 0;
+        y < height;
+        y++
+    ) {
+
+        let row = "";
+
+        for (
+            let x = 0;
+            x < width;
+            x++
+        ) {
+
+            const index =
+                (
+                    y * width +
+                    x
+                ) * 4;
+
+            let r =
+                pixels[index];
+
+            let g =
+                pixels[index + 1];
+
+            let b =
+                pixels[index + 2];
+
+            const a =
+                pixels[index + 3];
+
+            if (
+                a < 255
+            ) {
+
+                const alpha =
+                    a / 255;
+
+                r =
+                    Math.round(
+                        r * alpha +
+                        255 *
+                        (1 - alpha)
+                    );
+
+                g =
+                    Math.round(
+                        g * alpha +
+                        255 *
+                        (1 - alpha)
+                    );
+
+                b =
+                    Math.round(
+                        b * alpha +
+                        255 *
+                        (1 - alpha)
+                    );
+            }
+
+            row +=
+                nearestColor(
+                    r,
+                    g,
+                    b
+                );
+        }
+
+        rows.push(
+            row
+        );
+    }
+
+    return {
+        width,
+        height,
+        text:
+            rows.join(
+                "/n"
+            )
+    };
+}
+
+document
+    .getElementById(
+        "convertButton"
+    )
+    .addEventListener(
+        "click",
+        async function () {
+
+            const file =
+                document
+                    .getElementById(
+                        "imageFile"
+                    )
+                    .files[0];
+
+            if (!file) {
+
+                alert(
+                    "画像を選択してください。"
+                );
+
+                return;
+            }
+
+            const width =
+                Number(
+                    document
+                        .getElementById(
+                            "gridWidth"
+                        )
+                        .value
+                );
+
+            if (
+                !Number.isInteger(
+                    width
+                ) ||
+                width < 1 ||
+                width > 128
+            ) {
+
+                alert(
+                    "横のマス数は1～128で入力してください。"
+                );
+
+                return;
+            }
+
+            const button =
+                this;
+
+            button.disabled =
+                true;
+
+            button.textContent =
+                "変換中...";
+
+            try {
+
+                const result =
+                    await imageToText(
+                        file,
+                        width
+                    );
+
+                document
+                    .getElementById(
+                        "outputText"
+                    )
+                    .value =
+                    result.text;
+
+                document
+                    .getElementById(
+                        "imageInfo"
+                    )
+                    .textContent =
+                    `変換サイズ：${result.width} × ${result.height}マス`;
+
+            } catch (
+                error
+            ) {
+
+                alert(
+                    error.message ||
+                    "変換に失敗しました。"
+                );
+
+            } finally {
+
+                button.disabled =
+                    false;
+
+                button.textContent =
+                    "画像を文字列に変換";
+            }
+        }
+    );
+
+document
+    .getElementById(
+        "copyButton"
+    )
+    .addEventListener(
+        "click",
+        async function () {
+
+            const textarea =
+                document
+                    .getElementById(
+                        "outputText"
+                    );
+
+            const text =
+                textarea.value;
+
+            if (!text) {
+
+                alert(
+                    "先に画像を変換してください。"
+                );
+
+                return;
+            }
+
+            try {
+
+                await navigator
+                    .clipboard
+                    .writeText(
+                        text
+                    );
+
+                alert(
+                    "文字列をコピーしました。"
+                );
+
+            } catch {
+
+                textarea.focus();
+
+                textarea.select();
+
+                try {
+
+                    document.execCommand(
+                        "copy"
+                    );
+
+                    alert(
+                        "文字列をコピーしました。"
+                    );
+
+                } catch {
+
+                    alert(
+                        "コピーできませんでした。文字列を長押ししてコピーしてください。"
+                    );
+                }
+            }
+        }
+    );
+
+function textToImage(
+    text
+) {
+
+    if (
+        !text ||
+        text.length === 0
+    ) {
+
+        throw new Error(
+            "文字列を入力してください。"
+        );
+    }
+
+    text =
+        text.replace(
+            /\r/g,
+            ""
+        );
+
+    const lines =
+        text.split(
+            "/n"
+        );
+
+    const width =
+        Math.max(
+            ...lines.map(
+                line =>
+                    Array.from(
+                        line
+                    ).length
+            )
+        );
+
+    const height =
+        lines.length;
+
+    if (
+        width < 1 ||
+        height < 1
+    ) {
+
+        throw new Error(
+            "画像サイズを取得できません。"
+        );
+    }
+
+    const canvas =
+        document
+            .getElementById(
+                "canvas"
+            );
+
+    canvas.width =
+        width;
+
+    canvas.height =
+        height;
+
+    const ctx =
+        canvas.getContext(
+            "2d"
+        );
+
+    const imageData =
+        ctx.createImageData(
+            width,
+            height
+        );
+
+    for (
+        let i = 0;
+        i < imageData.data.length;
+        i += 4
+    ) {
+
+        imageData.data[i] =
+            255;
+
+        imageData.data[i + 1] =
+            255;
+
+        imageData.data[i + 2] =
+            255;
+
+        imageData.data[i + 3] =
+            255;
+    }
+
+    for (
+        let y = 0;
+        y < height;
+        y++
+    ) {
+
+        const chars =
+            Array.from(
+                lines[y]
+            );
+
+        for (
+            let x = 0;
+            x < chars.length;
+            x++
+        ) {
+
+            const char =
+                chars[x];
+
+            const color =
+                charToColor.get(
+                    char
+                );
+
+            if (!color) {
+
+                throw new Error(
+                    `使用できない文字があります：${char}`
+                );
+            }
+
+            const index =
+                (
+                    y * width +
+                    x
+                ) * 4;
+
+            imageData.data[
+                index
+            ] =
+                color[0];
+
+            imageData.data[
+                index + 1
+            ] =
+                color[1];
+
+            imageData.data[
+                index + 2
+            ] =
+                color[2];
+
+            imageData.data[
+                index + 3
+            ] =
+                255;
+        }
+    }
+
+    ctx.putImageData(
+        imageData,
+        0,
+        0
+    );
+
+    return {
+        width,
+        height
+    };
+}
+
+document
+    .getElementById(
+        "decodeButton"
+    )
+    .addEventListener(
+        "click",
+        function () {
+
+            const text =
+                document
+                    .getElementById(
+                        "inputText"
+                    )
+                    .value;
+
+            try {
+
+                const result =
+                    textToImage(
+                        text
+                    );
+
+                document
+                    .getElementById(
+                        "textInfo"
+                    )
+                    .textContent =
+                    `画像サイズ：${result.width} × ${result.height}マス`;
+
+            } catch (
+                error
+            ) {
+
+                alert(
+                    error.message ||
+                    "画像への変換に失敗しました。"
+                );
+            }
+        }
+    );
+
+document
+    .getElementById(
+        "downloadButton"
+    )
+    .addEventListener(
+        "click",
+        function () {
+
+            const canvas =
+                document.getElementById(
+                    "canvas"
+                );
+
+            if (
+                canvas.width === 0 ||
+                canvas.height === 0
+            ) {
+
+                alert(
+                    "先に画像へ変換してください。"
+                );
+
+                return;
+            }
+
+            canvas.toBlob(
+                function (blob) {
+
+                    if (!blob) {
+
+                        alert(
+                            "PNGを作成できませんでした。"
+                        );
+
+                        return;
+                    }
+
+                    const url =
+                        URL.createObjectURL(
+                            blob
+                        );
+
+                    const link =
+                        document.createElement(
+                            "a"
+                        );
+
+                    link.href =
+                        url;
+
+                    link.download =
+                        "hirogram.png";
+
+                    document
+                        .body
+                        .appendChild(
+                            link
+                        );
+
+                    link.click();
+
+                    link.remove();
+
+                    setTimeout(
+                        function () {
+
+                            URL.revokeObjectURL(
+                                url
+                            );
+
+                        },
+                        1000
+                    );
+                },
+                "image/png"
+            );
+        }
+    );
+
+</script>
+
+</body>
+</html>
